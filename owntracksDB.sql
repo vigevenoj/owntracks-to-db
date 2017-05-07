@@ -14,5 +14,7 @@ create table locationupdates(
   vel integer,
   p integer,
   conn char(1),
-  rawdata json
+  rawdata json,
+  userid varchar(64),
+  device varchar(64)
 )
