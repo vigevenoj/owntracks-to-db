@@ -29,7 +29,7 @@ class Dumper():
                                               user=dbuser, password=dbpass,
                                               dbname=dbname)
 
-                # Handle mqtt messages
+                # Handle mqtt messages from the channels we subscribe to
                 def handle_message(client, userdata, message):
                     j = json.loads(str(message.payload, encoding="ascii"))
                     if(message.topic.startswith("owntracks")):
@@ -39,6 +39,8 @@ class Dumper():
                         if(j['_type'] == 'location'):
                             userid = message.topic.split('/')[1]
                             device = message.topic.split('/')[2]
+                            logging.info("{0} {1} posted an update: {2}"
+                                         .format(userid, device, j))
                             self.handle_location_update(userid, device, j)
 
                 self._client = mqtt.Client(client_id="")
@@ -55,8 +57,9 @@ class Dumper():
                                       payload="o2db script offline")
                 mqtt_host = configs['mqtt']['host']
                 mqtt_port = configs['mqtt']['port']
-                self._client.connect(mqtt_host, mqtt_port)
                 self._client.on_message = handle_message
+                logging.warn("Connecting to mqtt broker...")
+                self._client.connect(mqtt_host, mqtt_port)
         except IOError as e:
             logging.error("Unable to load configuration. {0}".format(e))
             sys.exit(1)
