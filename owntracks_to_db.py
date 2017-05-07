@@ -39,7 +39,7 @@ class Dumper():
                         if(j['_type'] == 'location'):
                             userid = message.topic.split('/')[1]
                             device = message.topic.split('/')[2]
-                            logging.info("{0} {1} posted an update: {2}"
+                            logging.error("{0} {1} posted an update: {2}"
                                          .format(userid, device, j))
                             self.handle_location_update(userid, device, j)
 
@@ -92,6 +92,7 @@ class Dumper():
              'lon': lon, 'rad': rad, 't': t, 'tid': tid, 'tst': tst,
              'vac': vac, 'vel': vel, 'p': pressure, 'conn': connection_status,
              'rawdata': json.dumps(rawdata)})
+        self._conn.commit()
 
     def run(self):
         self._client.subscribe([("owntracks/#", 0)])
