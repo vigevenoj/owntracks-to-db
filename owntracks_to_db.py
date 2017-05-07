@@ -39,8 +39,8 @@ class Dumper():
                         if(j['_type'] == 'location'):
                             userid = message.topic.split('/')[1]
                             device = message.topic.split('/')[2]
-                            logging.error("{0} {1} posted an update: {2}"
-                                         .format(userid, device, j))
+                            logging.info("{0} {1} posted an update: {2}"
+                                          .format(userid, device, j))
                             self.handle_location_update(userid, device, j)
 
                 self._client = mqtt.Client(client_id="")
@@ -84,14 +84,14 @@ class Dumper():
         cur = self._conn.cursor()
         cur.execute(
             """insert into locationupdates (acc, alt, batt, cog, lat, lon,
-            radius, t, tid, tst, vac, vel, p, conn, rawdata)
+            radius, t, tid, tst, vac, vel, p, conn, rawdata, userid, device)
             values (%(acc)s, %(alt)s, %(batt)s, %(cog)s, %(lat)s, %(lon)s,
             %(rad)s, %(t)s, %(tid)s, %(tst)s, %(vac)s, %(vel)s, %(p)s,
-            %(conn)s, %(rawdata)s);""",
+            %(conn)s, %(rawdata)s, %(userid)s, %(device)s);""",
             {'acc': acc, 'alt': alt, 'batt': batt, 'cog': cog, 'lat': lat,
              'lon': lon, 'rad': rad, 't': t, 'tid': tid, 'tst': tst,
              'vac': vac, 'vel': vel, 'p': pressure, 'conn': connection_status,
-             'rawdata': json.dumps(rawdata)})
+             'rawdata': json.dumps(rawdata), 'userid': user, 'device': device})
         self._conn.commit()
 
     def run(self):
