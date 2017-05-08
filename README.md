@@ -19,7 +19,8 @@ The ruby flavor relies on the 2-clause BSD-licensed 'pg' gem and the MIT-license
 
 ### General
 Run the sql in owntracksDB.sql to generate the necessary schema and configure your usernames and passwords in .owntrackstodb.yaml in the same directory as the script. Example configuration:
-```mqtt:
+```
+mqtt:
   host: localhost
   port: 1883
   ssl: :TLSv1
@@ -32,7 +33,8 @@ database:
   port: 5432
   username: postgres
   password: postgres
-  dbname: locationupdates```
+  dbname: locationupdates
+```
 
 ### ruby
 owntracks\_to\_db.rb runs under ruby 1.9.3 and up, with caveats in 1.9.3 as the pg gem is unable to serialize the json into the database so the 'rawdata' column will be empty. This shouldn't be an issue since that column can be generated from the other columns. These gems must be installed
