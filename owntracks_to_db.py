@@ -13,7 +13,7 @@ import time
 import yaml
 
 
-class Dumper():
+class OwntracksToDatabaseBridge():
     def __init__(self, config='./.owntrackstodb.yaml'):
         try:
             with open(config, 'r') as f:
@@ -40,7 +40,7 @@ class Dumper():
                             userid = message.topic.split('/')[1]
                             device = message.topic.split('/')[2]
                             logging.info("{0} {1} posted an update: {2}"
-                                          .format(userid, device, j))
+                                         .format(userid, device, j))
                             self.handle_location_update(userid, device, j)
 
                 self._client = mqtt.Client(client_id="")
@@ -105,5 +105,5 @@ class Dumper():
             self._client.disconnect()
 
 if __name__ == '__main__':
-    dumper = Dumper()
-    dumper.run()
+    bridge = OwntracksToDatabaseBridge()
+    bridge.run()

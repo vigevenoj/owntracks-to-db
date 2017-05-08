@@ -1,8 +1,6 @@
 #!/opt/rh/ruby193/root/usr/bin/ruby
 # -*- encoding: utf-8 -*-
 #
-# mqtt & influxdb sample...
-#
 # libraries
 #   $ gem install mqtt
 #   $ gem install pg
@@ -51,7 +49,7 @@ class OwntracksToDatabaseBridge
     dbpass = configuration['database']['password']
     dbname = configuration['database']['dbname']
     @conn = PG.connect(:host => dbhost, :port => dbport, :user => dbuser, :password => dbpass, :dbname => dbname)
-    @conn.prepare('locationupdate1', 'insert into locationupdates (acc, alt, batt, cog, lat, lon, radius, t, tid, tst, vac, vel, p, conn, rawdata) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)')
+    @conn.prepare('locationupdate1', 'insert into locationupdates (acc, alt, batt, cog, lat, lon, radius, t, tid, tst, vac, vel, p, conn, rawdata, userid, device) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)')
 
     STDOUT.sync = true
     #@log = Logger.new(STDOUT)
@@ -79,7 +77,7 @@ class OwntracksToDatabaseBridge
     @log.info("rawdata is #{json}")
 
     # now that we have all the elements we need, we should insert them into the database
-    @conn.exec_prepared('locationupdate1', [acc, alt, batt, cog, lat, lon, rad, t, tid, tst, vac, vel, pressure, connection_status, rawdata])
+    @conn.exec_prepared('locationupdate1', [acc, alt, batt, cog, lat, lon, rad, t, tid, tst, vac, vel, pressure, connection_status, rawdata, user, device])
 
   end
 
