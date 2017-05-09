@@ -5,6 +5,7 @@ Store owntracks location updates in a database
 from datetime import datetime, timezone
 import json
 import logging
+import logging.handlers
 import paho.mqtt.client as mqtt
 import psycopg2
 import ssl
@@ -18,6 +19,16 @@ class OwntracksToDatabaseBridge():
         try:
             with open(config, 'r') as f:
                 configs = yaml.load(f.read())
+
+                logging.basicConfig(level=logging.INFO)
+                self._logger = logging.getLogger(__name__)
+                formatter = logging.Formatter(
+                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                handler = logging.handlers.RotatingFileHandler('o2db.log',
+                                                               maxBytes=1048576,
+                                                               backupCount=5)
+                handler.setFormatter(formatter)
+                self._logger.addHandler(handler)
 
                 dbhost = configs['database']['host']
                 dbport = configs['database']['port']
@@ -39,8 +50,8 @@ class OwntracksToDatabaseBridge():
                         if(j['_type'] == 'location'):
                             userid = message.topic.split('/')[1]
                             device = message.topic.split('/')[2]
-                            logging.info("{0} {1} posted an update: {2}"
-                                         .format(userid, device, j))
+                            self._logger.info("{0} {1} posted an update: {2}"
+                                              .format(userid, device, j))
                             self.handle_location_update(userid, device, j)
 
                 self._client = mqtt.Client(client_id="")
@@ -49,8 +60,8 @@ class OwntracksToDatabaseBridge():
                                          cert_reqs=ssl.CERT_REQUIRED,
                                          tls_version=ssl.PROTOCOL_TLSv1)
                 except IOError as e:
-                    logging.error("Something went wrong setting up mqtt. {0}"
-                                  .format(e))
+                    self._logger.error("Something went wrong in mqtt setup. {0}"
+                                       .format(e))
                 self._client.username_pw_set(configs['mqtt']['username'],
                                              configs['mqtt']['password'])
                 self._client.will_set("/lwt/o2db",
@@ -58,10 +69,10 @@ class OwntracksToDatabaseBridge():
                 mqtt_host = configs['mqtt']['host']
                 mqtt_port = configs['mqtt']['port']
                 self._client.on_message = handle_message
-                logging.warn("Connecting to mqtt broker...")
+                self._logger.warn("Connecting to mqtt broker...")
                 self._client.connect(mqtt_host, mqtt_port)
         except IOError as e:
-            logging.error("Unable to load configuration. {0}".format(e))
+            self._logger.error("Unable to load configuration. {0}".format(e))
             sys.exit(1)
 
     def handle_location_update(self, user, device, rawdata):
@@ -96,7 +107,7 @@ class OwntracksToDatabaseBridge():
 
     def run(self):
         self._client.subscribe([("owntracks/#", 0)])
-        logging.warn("subscribed to 'owntracks/#'")
+        self._logger.warn("subscribed to 'owntracks/#'")
         self._client.loop_forever()
         try:
             while True:
