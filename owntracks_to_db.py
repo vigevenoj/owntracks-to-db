@@ -3,6 +3,7 @@
 Store owntracks location updates in a database
 """
 from datetime import datetime, timezone
+from prometheus_client import start_http_server, Counter, Gauge
 import json
 import logging
 import logging.handlers
@@ -18,7 +19,19 @@ class OwntracksToDatabaseBridge():
     def __init__(self, config='./.owntrackstodb.yaml'):
         try:
             with open(config, 'r') as f:
+                self.total_recieved_updates = Counter(
+                    'total_received_updates',
+                    'The number of updates received from the mqtt broker')
+                self.total_persisted_updates = Counter(
+                    'total_persisted_updates',
+                    'The number of updates saved into the database')
                 configs = yaml.load(f.read())
+                self._last_persisted_timestamp = 0
+                self._last_received_timestamp = 0
+                self.persistance_lag = Gauge(
+                    'persistence_lag',
+                    'Seconds between most-recently-received update and ' +
+                    'the most-recently-persisted update')
 
                 logging.basicConfig(level=logging.INFO)
                 self._logger = logging.getLogger(__name__)
@@ -52,6 +65,7 @@ class OwntracksToDatabaseBridge():
                             device = message.topic.split('/')[2]
                             self._logger.info("{0} {1} posted an update: {2}"
                                               .format(userid, device, j))
+                            self.total_recieved_updates.inc()
                             self.handle_location_update(userid, device, j)
 
                 self._client = mqtt.Client(client_id="")
@@ -92,18 +106,24 @@ class OwntracksToDatabaseBridge():
         connection_status = rawdata.get('conn')  # connection status: w, o, m
 
         # execute prepared statement
-        cur = self._conn.cursor()
-        cur.execute(
-            """insert into locationupdates (acc, alt, batt, cog, lat, lon,
-            radius, t, tid, tst, vac, vel, p, conn, rawdata, userid, device)
-            values (%(acc)s, %(alt)s, %(batt)s, %(cog)s, %(lat)s, %(lon)s,
-            %(rad)s, %(t)s, %(tid)s, %(tst)s, %(vac)s, %(vel)s, %(p)s,
-            %(conn)s, %(rawdata)s, %(userid)s, %(device)s);""",
-            {'acc': acc, 'alt': alt, 'batt': batt, 'cog': cog, 'lat': lat,
-             'lon': lon, 'rad': rad, 't': t, 'tid': tid, 'tst': tst,
-             'vac': vac, 'vel': vel, 'p': pressure, 'conn': connection_status,
-             'rawdata': json.dumps(rawdata), 'userid': user, 'device': device})
-        self._conn.commit()
+        try:
+            cur = self._conn.cursor()
+            cur.execute(
+                """insert into locationupdates (acc, alt, batt, cog, lat, lon,
+                radius, t, tid, tst, vac, vel, p, conn, rawdata, userid, device)
+                values (%(acc)s, %(alt)s, %(batt)s, %(cog)s, %(lat)s, %(lon)s,
+                %(rad)s, %(t)s, %(tid)s, %(tst)s, %(vac)s, %(vel)s, %(p)s,
+                %(conn)s, %(rawdata)s, %(userid)s, %(device)s);""",
+                {'acc': acc, 'alt': alt, 'batt': batt, 'cog': cog, 'lat': lat,
+                 'lon': lon, 'rad': rad, 't': t, 'tid': tid, 'tst': tst,
+                 'vac': vac, 'vel': vel, 'p': pressure,
+                 'conn': connection_status, 'rawdata': json.dumps(rawdata),
+                 'userid': user, 'device': device})
+            self._conn.commit()
+            self.total_persisted_updates.inc()
+        except Exception as e:
+            # TODO We should try to persist this update again
+            self._logger.error("Unable to execute query: {0}".format(e))
 
     def run(self):
         self._client.subscribe([("owntracks/#", 0)])
@@ -116,5 +136,6 @@ class OwntracksToDatabaseBridge():
             self._client.disconnect()
 
 if __name__ == '__main__':
+    start_http_server(8000)
     bridge = OwntracksToDatabaseBridge()
     bridge.run()
