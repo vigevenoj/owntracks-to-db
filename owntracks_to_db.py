@@ -32,14 +32,18 @@ class OwntracksToDatabaseBridge():
                     'persistence_lag',
                     'Seconds between most-recently-received update and ' +
                     'the most-recently-persisted update')
+                self.insertion_errors = Counter(
+                    'insertion_errors',
+                    'Count of errors inserting records into the database')
 
                 logging.basicConfig(level=logging.INFO)
                 self._logger = logging.getLogger(__name__)
                 formatter = logging.Formatter(
                     '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-                handler = logging.handlers.RotatingFileHandler('o2db.log',
-                                                               maxBytes=1048576,
-                                                               backupCount=5)
+                handler = logging.handlers.RotatingFileHandler(
+                    'o2db.log',
+                    maxBytes=1048576,
+                    backupCount=5)
                 handler.setFormatter(formatter)
                 self._logger.addHandler(handler)
 
@@ -123,6 +127,7 @@ class OwntracksToDatabaseBridge():
             self.total_persisted_updates.inc()
         except Exception as e:
             # TODO We should try to persist this update again
+            self.insertion_errors.inc()
             self._logger.error("Unable to execute query: {0}".format(e))
 
     def run(self):
