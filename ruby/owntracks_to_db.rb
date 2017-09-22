@@ -13,6 +13,7 @@ require 'json'
 require 'logger'
 require 'mqtt'
 require 'pg'
+require 'prometheus/client'
 require 'rubygems'
 require 'yaml'
 
@@ -40,6 +41,7 @@ class OwntracksToDatabaseBridge
     @mqtt.ca_file = configuration['mqtt']['ca_cert']
     @mqtt.username = configuration['mqtt']['username']
     @mqtt.password = configuration['mqtt']['password']
+    prometheus = Prometheus::Client.registry
 
     # set up database configuration from yaml 
     # and connect to database
