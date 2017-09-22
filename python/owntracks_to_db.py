@@ -18,7 +18,14 @@ import yaml
 
 
 class OwntracksToDatabaseBridge():
+    """
+    Subscribe to owntracks updates and insert them into a postgres database
+    """
     def __init__(self, configs):
+        """
+        Initialize our owntracks->db bridge from the configuration map, and
+        connect to the MQTT broker and database
+        """
         # Declare our metrics for later use
         self.total_recieved_updates = Counter(
             'total_received_updates',
@@ -43,7 +50,7 @@ class OwntracksToDatabaseBridge():
         handler = logging.handlers.RotatingFileHandler(
             'o2db.log',
             maxBytes=1048576,
-            backupCount=5)
+            backupCount=2)
         handler.setFormatter(formatter)
         self._logger.addHandler(handler)
         dbhost = configs['database']['host']
@@ -58,6 +65,11 @@ class OwntracksToDatabaseBridge():
 
         # Handle mqtt messages from the channels we subscribe to
         def handle_message(client, userdata, message):
+            """
+            Individual owntracks update messages are parsed for a username
+            and a device name, and that information is used to insert the
+            update into the database.
+            """
             j = json.loads(str(message.payload, encoding="ascii"))
             if(message.topic.startswith("owntracks")):
                 # If message format is 'owntracks/user/device'
@@ -89,6 +101,11 @@ class OwntracksToDatabaseBridge():
         self._client.connect(mqtt_host, mqtt_port)
 
     def handle_location_update(self, user, device, rawdata):
+        """
+        Insert a location update into the database and increment any relevant
+        counters. Update lag time between latest insertion and most recently
+        received update
+        """
         acc = rawdata.get('acc')  # accuracy in meters
         alt = rawdata.get('alt')  # altitude above sea level
         batt = rawdata.get('batt')  # battery percentage
@@ -126,6 +143,9 @@ class OwntracksToDatabaseBridge():
             self._logger.error("Unable to execute query: {0}".format(e))
 
     def run(self):
+        """
+        Subscribe to the channel and loop until terminated
+        """
         self._client.subscribe([("owntracks/#", 0)])
         self._logger.warn("subscribed to 'owntracks/#'")
         self._client.loop_forever()
@@ -136,23 +156,7 @@ class OwntracksToDatabaseBridge():
             self._client.disconnect()
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config")
-    args = parser.parse_args()
-    configmap = {}
-    if args.config:
-        try:
-            with open(args.config, 'r') as stream:
-                try:
-                    configmap = yaml.load(stream)
-                except yaml.YAMLError as e:
-                    print("Unable to load configuration file: {0}".format(e))
-                    sys.exit(1)
-        except IOError as e:
-            print("Error loading configuration file: {0}".format(e))
-            sys.exit(1)
-    # Use environment variables to fill in anything missing from config file
+def handle_environment_configuration(configmap):
     base = 'OWNTRACKS2DB_'
     if os.environ.get(base + 'MQTT_HOST'):
         configmap['mqtt']['host'] = os.environ[base + 'MQTT_HOST']
@@ -176,6 +180,27 @@ if __name__ == '__main__':
         configmap['database']['password'] = os.environ[base + 'DB_PASSWORD']
     if os.environ.get(base + 'DB_NAME'):
         configmap['database']['dbname'] = os.environ[base + 'DB_NAME']
+    return configmap
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config")
+    args = parser.parse_args()
+    configmap = {}
+    if args.config:
+        try:
+            with open(args.config, 'r') as stream:
+                try:
+                    configmap = yaml.load(stream)
+                except yaml.YAMLError as e:
+                    print("Unable to load configuration file: {0}".format(e))
+                    sys.exit(1)
+        except IOError as e:
+            print("Error loading configuration file: {0}".format(e))
+            sys.exit(1)
+    # Use environment variables to fill in anything missing from config file
+    configmap = handle_environment_configuration(configmap)
 
     start_http_server(8000)
     bridge = OwntracksToDatabaseBridge(configmap)
