@@ -4,9 +4,11 @@ Store owntracks location updates in a database
 """
 from datetime import datetime, timezone
 from prometheus_client import start_http_server, Counter, Gauge
+import argparse
 import json
 import logging
 import logging.handlers
+import os
 import paho.mqtt.client as mqtt
 import psycopg2
 import ssl
@@ -16,82 +18,75 @@ import yaml
 
 
 class OwntracksToDatabaseBridge():
-    def __init__(self, config='./.owntrackstodb.yaml'):
+    def __init__(self, configs):
+        # Declare our metrics for later use
+        self.total_recieved_updates = Counter(
+            'total_received_updates',
+            'The number of updates received from the mqtt broker')
+        self.total_persisted_updates = Counter(
+            'total_persisted_updates',
+            'The number of updates saved into the database')
+        self._last_persisted_timestamp = 0
+        self._last_received_timestamp = 0
+        self.persistance_lag = Gauge(
+            'persistence_lag',
+            'Seconds between most-recently-received update and ' +
+            'the most-recently-persisted update')
+        self.insertion_errors = Counter(
+            'insertion_errors',
+            'Count of errors inserting records into the database')
+        # Configure logging
+        logging.basicConfig(level=logging.INFO)
+        self._logger = logging.getLogger(__name__)
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler = logging.handlers.RotatingFileHandler(
+            'o2db.log',
+            maxBytes=1048576,
+            backupCount=5)
+        handler.setFormatter(formatter)
+        self._logger.addHandler(handler)
+        dbhost = configs['database']['host']
+        dbport = configs['database']['port']
+        dbuser = configs['database']['username']
+        dbpass = configs['database']['password']
+        dbname = configs['database']['dbname']
+
+        self._conn = psycopg2.connect(host=dbhost, port=dbport,
+                                      user=dbuser, password=dbpass,
+                                      dbname=dbname)
+
+        # Handle mqtt messages from the channels we subscribe to
+        def handle_message(client, userdata, message):
+            j = json.loads(str(message.payload, encoding="ascii"))
+            if(message.topic.startswith("owntracks")):
+                # If message format is 'owntracks/user/device'
+                # then we should try to parse out userid/deviceid
+                # and handle this message as a location update
+                if(j['_type'] == 'location'):
+                    userid = message.topic.split('/')[1]
+                    device = message.topic.split('/')[2]
+                    self._logger.info("{0} {1} posted an update: {2}"
+                                      .format(userid, device, j))
+                    self.total_recieved_updates.inc()
+                    self.handle_location_update(userid, device, j)
+        self._client = mqtt.Client(client_id="")
         try:
-            with open(config, 'r') as f:
-                self.total_recieved_updates = Counter(
-                    'total_received_updates',
-                    'The number of updates received from the mqtt broker')
-                self.total_persisted_updates = Counter(
-                    'total_persisted_updates',
-                    'The number of updates saved into the database')
-                configs = yaml.load(f.read())
-                self._last_persisted_timestamp = 0
-                self._last_received_timestamp = 0
-                self.persistance_lag = Gauge(
-                    'persistence_lag',
-                    'Seconds between most-recently-received update and ' +
-                    'the most-recently-persisted update')
-                self.insertion_errors = Counter(
-                    'insertion_errors',
-                    'Count of errors inserting records into the database')
-
-                logging.basicConfig(level=logging.INFO)
-                self._logger = logging.getLogger(__name__)
-                formatter = logging.Formatter(
-                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-                handler = logging.handlers.RotatingFileHandler(
-                    'o2db.log',
-                    maxBytes=1048576,
-                    backupCount=5)
-                handler.setFormatter(formatter)
-                self._logger.addHandler(handler)
-
-                dbhost = configs['database']['host']
-                dbport = configs['database']['port']
-                dbuser = configs['database']['username']
-                dbpass = configs['database']['password']
-                dbname = configs['database']['dbname']
-
-                self._conn = psycopg2.connect(host=dbhost, port=dbport,
-                                              user=dbuser, password=dbpass,
-                                              dbname=dbname)
-
-                # Handle mqtt messages from the channels we subscribe to
-                def handle_message(client, userdata, message):
-                    j = json.loads(str(message.payload, encoding="ascii"))
-                    if(message.topic.startswith("owntracks")):
-                        # If message format is 'owntracks/user/device'
-                        # then we should try to parse out userid/deviceid
-                        # and handle this message as a location update
-                        if(j['_type'] == 'location'):
-                            userid = message.topic.split('/')[1]
-                            device = message.topic.split('/')[2]
-                            self._logger.info("{0} {1} posted an update: {2}"
-                                              .format(userid, device, j))
-                            self.total_recieved_updates.inc()
-                            self.handle_location_update(userid, device, j)
-
-                self._client = mqtt.Client(client_id="")
-                try:
-                    self._client.tls_set(ca_certs=configs['mqtt']['ca'],
-                                         cert_reqs=ssl.CERT_REQUIRED,
-                                         tls_version=ssl.PROTOCOL_TLSv1)
-                except IOError as e:
-                    self._logger.error("Something went wrong in mqtt setup. {0}"
-                                       .format(e))
-                self._client.username_pw_set(configs['mqtt']['username'],
-                                             configs['mqtt']['password'])
-                self._client.will_set("/lwt/o2db",
-                                      payload="o2db script offline")
-                mqtt_host = configs['mqtt']['host']
-                mqtt_port = configs['mqtt']['port']
-                self._client.on_message = handle_message
-                self._logger.warn("Connecting to mqtt broker...")
-                self._client.connect(mqtt_host, mqtt_port)
+            self._client.tls_set(ca_certs=configs['mqtt']['ca'],
+                                 cert_reqs=ssl.CERT_REQUIRED,
+                                 tls_version=ssl.PROTOCOL_TLSv1)
         except IOError as e:
-            self._logger.error("Unable to load configuration. {0}".format(e))
-            sys.exit(1)
+            self._logger.error("Something went wrong in mqtt setup. {0}"
+                               .format(e))
+        self._client.username_pw_set(configs['mqtt']['username'],
+                                     configs['mqtt']['password'])
+        self._client.will_set("/lwt/o2db",
+                              payload="o2db script offline")
+        mqtt_host = configs['mqtt']['host']
+        mqtt_port = configs['mqtt']['port']
+        self._client.on_message = handle_message
+        self._logger.warn("Connecting to mqtt broker...")
+        self._client.connect(mqtt_host, mqtt_port)
 
     def handle_location_update(self, user, device, rawdata):
         acc = rawdata.get('acc')  # accuracy in meters
@@ -140,7 +135,48 @@ class OwntracksToDatabaseBridge():
         except (KeyboardInterrupt, SystemExit):
             self._client.disconnect()
 
+
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config")
+    args = parser.parse_args()
+    configmap = {}
+    if args.config:
+        try:
+            with open(args.config, 'r') as stream:
+                try:
+                    configmap = yaml.load(stream)
+                except yaml.YAMLError as e:
+                    print("Unable to load configuration file: {0}".format(e))
+                    sys.exit(1)
+        except IOError as e:
+            print("Error loading configuration file: {0}".format(e))
+            sys.exit(1)
+    # Use environment variables to fill in anything missing from config file
+    base = 'OWNTRACKS2DB_'
+    if os.environ.get(base + 'MQTT_HOST'):
+        configmap['mqtt']['host'] = os.environ[base + 'MQTT_HOST']
+    if os.environ.get(base + 'MQTT_PORT'):
+        configmap['mqtt']['port'] = os.environ[base + 'MQTT_PORT']
+    if os.environ.get(base + 'MQTT_SSL'):
+        configmap['mqtt']['ssl'] = os.environ[base + 'MQTT_SSL']
+    if os.environ.get(base + 'MQTT_CA'):
+        configmap['mqtt']['ca'] = os.environ[base + 'MQTT_CA']
+    if os.environ.get(base + 'MQTT_USERNAME'):
+        configmap['mqtt']['username'] = os.environ[base + 'MQTT_USERNAME']
+    if os.environ.get('MQTT_PASSWORD'):
+        configmap['mqtt']['password'] = os.environ[base + 'MQTT_PASSWORD']
+    if os.environ.get(base + 'DB_HOST'):
+        configmap['database']['host'] = os.environ[base + 'DB_HOST']
+    if os.environ.get(base + 'DB_PORT'):
+        configmap['database']['port'] = os.environ[base + 'DB_PORT']
+    if os.environ.get(base + 'DB_USERNAME'):
+        configmap['database']['username'] = os.environ[base + 'DB_USERNAME']
+    if os.environ.get(base + 'DB_PASSWORD'):
+        configmap['database']['password'] = os.environ[base + 'DB_PASSWORD']
+    if os.environ.get(base + 'DB_NAME'):
+        configmap['database']['dbname'] = os.environ[base + 'DB_NAME']
+
     start_http_server(8000)
-    bridge = OwntracksToDatabaseBridge()
+    bridge = OwntracksToDatabaseBridge(configmap)
     bridge.run()
