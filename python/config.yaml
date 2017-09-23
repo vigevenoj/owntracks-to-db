@@ -1,0 +1,14 @@
+mqtt: 
+  host: 
+  port: 8883
+  ssl: :TLSv1
+  ca: 
+  ca_cert: 
+  username: 
+  password: 
+database:
+ host: 
+ port: 
+ username: postgres
+ password: postgres
+ dbname: 
