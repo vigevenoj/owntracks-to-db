@@ -12,7 +12,6 @@ import os
 import paho.mqtt.client as mqtt
 import psycopg2
 import ssl
-import sys
 import time
 import yaml
 
@@ -43,6 +42,7 @@ class OwntracksToDatabaseBridge():
             'insertion_errors',
             'Count of errors inserting records into the database')
         # Configure logging
+        # This should probably just be stdout?
         logging.basicConfig(level=logging.INFO)
         self._logger = logging.getLogger(__name__)
         formatter = logging.Formatter(
@@ -157,6 +157,7 @@ class OwntracksToDatabaseBridge():
 
 
 def handle_environment_configuration(configmap):
+    print("Overriding configuration file with environment configuration")
     base = 'OWNTRACKS2DB_'
     if os.environ.get(base + 'MQTT_HOST'):
         configmap['mqtt']['host'] = os.environ[base + 'MQTT_HOST']
@@ -195,10 +196,10 @@ if __name__ == '__main__':
                     configmap = yaml.load(stream)
                 except yaml.YAMLError as e:
                     print("Unable to load configuration file: {0}".format(e))
-                    sys.exit(1)
         except IOError as e:
             print("Error loading configuration file: {0}".format(e))
-            sys.exit(1)
+    else:
+        print("No configuration file specified")
     # Use environment variables to fill in anything missing from config file
     configmap = handle_environment_configuration(configmap)
 
