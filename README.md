@@ -18,7 +18,7 @@ The ruby flavor relies on the 2-clause BSD-licensed 'pg' gem and the MIT-license
 ## 3. Prerequisites
 
 ### General
-Run the sql in owntracksDB.sql to generate the necessary schema and configure your usernames and passwords in .owntrackstodb.yaml in the same directory as the script. Example configuration:
+Run the sql in owntracksDB.sql to generate the necessary schema and configure your usernames and passwords in a yaml configuration file that is specified via the `--config` flag. Example configuration:
 ```
 mqtt:
   host: localhost
@@ -35,6 +35,20 @@ database:
   password: postgres
   dbname: locationupdates
 ```
+
+Alternatively, the script can be configured via environment variables. Specifying these will override any values found in a configuration file. These are the environment variables required:
+ * OWNTRACKS2DB\_MQTT\_HOST   
+ * OWNTRACKS2DB\_MQTT\_PORT  
+ * OWNTRACKS2DB\_MQTT\_SSL  
+ * OWNTRACKS2DB\_MQTT\_CA  
+ * OWNTRACKS2DB\_MQTT\_USERNAME  
+ * OWNTRACKS2DB\_MQTT\_PASSWORD  
+ * OWNTRACKS2DB\_DB\_HOST  
+ * OWNTRACKS2DB\_DB\_PORT  
+ * OWNTRACKS2DB\_DB\_USERNAME  
+ * OWNTRACKS2DB\_DB\_PASSWORD  
+ * OWNTRACKS2DB\_DB\_NAME  
+
 
 ### ruby
 owntracks\_to\_db.rb runs under ruby 1.9.3 and up, with caveats in 1.9.3 as the pg gem is unable to serialize the json into the database so the 'rawdata' column will be empty. This shouldn't be an issue since that column can be generated from the other columns. These gems must be installed
