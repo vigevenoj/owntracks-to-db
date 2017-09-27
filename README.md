@@ -66,6 +66,9 @@ owntracks\_to\_db.py runs under python3 (tested with python 3.4). The following 
 The recommended way to install the python prerequisites is to `pip install -r requirements.txt` into a fresh virtualenv
 
 ## 4. How to use
+While not recommended for production, a quick-and-dirty way to start the scripts is to just run them, if their environment is set up or you specify a configuration file:
 `nohup ruby owntracks\_to\_db.rb &` will launch the ruby script in the background cleanly. The ruby version handles its own log rotation.
 
-`nohup python owntracks\_to\_db.py &` will launch the python script in the background cleanly. The python version does *not* handle its own log rotation.
+`nohup python owntracks\_to\_db.py &` will launch the python script in the background cleanly. The python version handles its own log rotation.
+
+Otherwise, you can build the Docker image and run that with your own tooling.
