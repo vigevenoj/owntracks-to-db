@@ -16,6 +16,6 @@ VOLUME /owntracks2db/config
 VOLUME /owntracks2db/certificates
 
 # Run the script
-# TODO: copy default config into 
-CMD [ "python", "./owntracks_to_db.py --config=config/config.yaml" ]
+# The config file isn't necessary
+CMD [ "python", "./owntracks_to_db.py" ]
 
