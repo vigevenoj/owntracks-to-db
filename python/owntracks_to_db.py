@@ -59,6 +59,7 @@ class OwntracksToDatabaseBridge():
         dbpass = configs['database']['password']
         dbname = configs['database']['dbname']
 
+        # TODO: if connection to database failes, retry with backoff
         self._conn = psycopg2.connect(host=dbhost, port=dbport,
                                       user=dbuser, password=dbpass,
                                       dbname=dbname)
@@ -97,8 +98,11 @@ class OwntracksToDatabaseBridge():
         mqtt_host = configs['mqtt']['host']
         mqtt_port = configs['mqtt']['port']
         self._client.on_message = handle_message
-        self._logger.warn("Connecting to mqtt broker...")
+        self._logger.warn("Connecting to mqtt at {0}:{1}...".format(
+            mqtt_host, mqtt_port))
+        # TODO: if connecting to mqtt broker fails, retry with backoff
         self._client.connect(mqtt_host, mqtt_port)
+        self._logger.warn("owntracks to db bridge started successfully")
 
     def handle_location_update(self, user, device, rawdata):
         """
@@ -159,22 +163,24 @@ class OwntracksToDatabaseBridge():
 def handle_environment_configuration(configmap):
     print("Overriding configuration file with environment configuration")
     base = 'OWNTRACKS2DB_'
+    configmap = ensure_keys(configmap)
+
     if os.environ.get(base + 'MQTT_HOST'):
         configmap['mqtt']['host'] = os.environ[base + 'MQTT_HOST']
     if os.environ.get(base + 'MQTT_PORT'):
-        configmap['mqtt']['port'] = os.environ[base + 'MQTT_PORT']
+        configmap['mqtt']['port'] = int(os.environ[base + 'MQTT_PORT'])
     if os.environ.get(base + 'MQTT_SSL'):
         configmap['mqtt']['ssl'] = os.environ[base + 'MQTT_SSL']
     if os.environ.get(base + 'MQTT_CA'):
         configmap['mqtt']['ca'] = os.environ[base + 'MQTT_CA']
     if os.environ.get(base + 'MQTT_USERNAME'):
         configmap['mqtt']['username'] = os.environ[base + 'MQTT_USERNAME']
-    if os.environ.get('MQTT_PASSWORD'):
+    if os.environ.get(base + 'MQTT_PASSWORD'):
         configmap['mqtt']['password'] = os.environ[base + 'MQTT_PASSWORD']
     if os.environ.get(base + 'DB_HOST'):
         configmap['database']['host'] = os.environ[base + 'DB_HOST']
     if os.environ.get(base + 'DB_PORT'):
-        configmap['database']['port'] = os.environ[base + 'DB_PORT']
+        configmap['database']['port'] = int(os.environ[base + 'DB_PORT'])
     if os.environ.get(base + 'DB_USERNAME'):
         configmap['database']['username'] = os.environ[base + 'DB_USERNAME']
     if os.environ.get(base + 'DB_PASSWORD'):
@@ -183,6 +189,21 @@ def handle_environment_configuration(configmap):
         configmap['database']['dbname'] = os.environ[base + 'DB_NAME']
     return configmap
 
+
+def ensure_keys(configmap):
+    """
+    Ensure that the outer keys are present in the config map
+    so we can safely insert the inner keys
+    """
+    if 'mqtt' not in configmap:
+        configmap['mqtt'] = {}
+    if 'database' not in configmap:
+        configmap['database'] = {}
+    return configmap
+
+
+def validate_configmap(configmap):
+    pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
