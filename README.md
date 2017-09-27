@@ -61,6 +61,7 @@ owntracks\_to\_db.py runs under python3 (tested with python 3.4). The following 
  * paho-mqtt
  * psycopg2
  * pyyaml
+ * prometheus_client 
 
 The recommended way to install the python prerequisites is to `pip install -r requirements.txt` into a fresh virtualenv
 
