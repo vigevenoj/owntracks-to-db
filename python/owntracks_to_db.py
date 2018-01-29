@@ -3,6 +3,7 @@
 Store owntracks location updates in a database
 """
 from datetime import datetime, timezone
+from pgdb import connect
 from prometheus_client import start_http_server, Counter, Gauge
 import argparse
 import json
@@ -10,7 +11,6 @@ import logging
 import logging.handlers
 import os
 import paho.mqtt.client as mqtt
-import psycopg2
 import ssl
 import time
 import yaml
@@ -60,9 +60,9 @@ class OwntracksToDatabaseBridge():
         dbname = configs['database']['dbname']
 
         # TODO: if connection to database failes, retry with backoff
-        self._conn = psycopg2.connect(host=dbhost, port=dbport,
-                                      user=dbuser, password=dbpass,
-                                      dbname=dbname)
+        self._conn = connect(database=dbname, host=dbhost, port=dbport,
+                             user=dbuser, password=dbpass)
+
 
         # Handle mqtt messages from the channels we subscribe to
         def handle_message(client, userdata, message):
@@ -187,6 +187,8 @@ def handle_environment_configuration(configmap):
         configmap['database']['password'] = os.environ[base + 'DB_PASSWORD']
     if os.environ.get(base + 'DB_NAME'):
         configmap['database']['dbname'] = os.environ[base + 'DB_NAME']
+    if os.environ.get(base + 'METRICS_PORT'):
+        configmap['metrics']['port'] = os.eniron[base + 'METRICS_PORT']
     return configmap
 
 
@@ -199,6 +201,8 @@ def ensure_keys(configmap):
         configmap['mqtt'] = {}
     if 'database' not in configmap:
         configmap['database'] = {}
+    if 'metrics' not in configmap:
+        configmap['metrics'] = {}
     return configmap
 
 
@@ -224,6 +228,9 @@ if __name__ == '__main__':
     # Use environment variables to fill in anything missing from config file
     configmap = handle_environment_configuration(configmap)
 
-    start_http_server(8000)
+    if 'port' not in configmap['metrics']:
+        configmap['metrics']['port'] = 8000
+
+    start_http_server(configmap['metrics']['port'])
     bridge = OwntracksToDatabaseBridge(configmap)
     bridge.run()

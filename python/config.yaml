@@ -12,3 +12,5 @@ database:
  username: postgres
  password: postgres
  dbname: 
+metrics:
+  port: 8000
