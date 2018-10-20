@@ -63,7 +63,6 @@ class OwntracksToDatabaseBridge():
         self._conn = connect(database=dbname, host=dbhost, port=dbport,
                              user=dbuser, password=dbpass)
 
-
         # Handle mqtt messages from the channels we subscribe to
         def handle_message(client, userdata, message):
             """
