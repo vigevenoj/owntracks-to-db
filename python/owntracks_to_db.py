@@ -160,7 +160,7 @@ class OwntracksToDatabaseBridge():
             self._client.disconnect()
 
 
-def handle_environment_configuration(configmap):
+def handle_environment_configuration(configmap): # noqa: C901
     print("Overriding configuration file with environment configuration")
     base = 'OWNTRACKS2DB_'
     configmap = ensure_keys(configmap)
