@@ -41,6 +41,9 @@ class OwntracksToDatabaseBridge():
         self.insertion_errors = Counter(
             'insertion_errors',
             'Count of errors inserting records into the database')
+        self.current_insertion_errors = Gauge(
+            'current_insertion_errors',
+            'Number of insertion errors since successful insert into database')
         # Configure logging
         # This should probably just be stdout?
         logging.basicConfig(level=logging.INFO)
@@ -140,9 +143,11 @@ class OwntracksToDatabaseBridge():
                  'userid': user, 'device': device})
             self._conn.commit()
             self.total_persisted_updates.inc()
+            self.current_insertion_errors.set(0)
         except Exception as e:
             # TODO We should try to persist this update again
             self.insertion_errors.inc()
+            self.current_insertion_errors.inc()
             self._logger.error("Unable to execute query: {0}".format(e))
 
     def run(self):
