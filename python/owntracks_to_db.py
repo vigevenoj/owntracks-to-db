@@ -41,6 +41,9 @@ class OwntracksToDatabaseBridge():
         self.insertion_errors = Counter(
             'insertion_errors',
             'Count of errors inserting records into the database')
+        self.current_insertion_errors = Gauge(
+            'current_insertion_errors',
+            'Number of insertion errors since successful insert into database')
         # Configure logging
         # This should probably just be stdout?
         logging.basicConfig(level=logging.INFO)
@@ -59,10 +62,9 @@ class OwntracksToDatabaseBridge():
         dbpass = configs['database']['password']
         dbname = configs['database']['dbname']
 
-        # TODO: if connection to database failes, retry with backoff
+        # TODO: if connection to database fails, retry with backoff
         self._conn = connect(database=dbname, host=dbhost, port=dbport,
                              user=dbuser, password=dbpass)
-
 
         # Handle mqtt messages from the channels we subscribe to
         def handle_message(client, userdata, message):
@@ -141,9 +143,11 @@ class OwntracksToDatabaseBridge():
                  'userid': user, 'device': device})
             self._conn.commit()
             self.total_persisted_updates.inc()
+            self.current_insertion_errors.set(0)
         except Exception as e:
             # TODO We should try to persist this update again
             self.insertion_errors.inc()
+            self.current_insertion_errors.inc()
             self._logger.error("Unable to execute query: {0}".format(e))
 
     def run(self):
@@ -160,7 +164,7 @@ class OwntracksToDatabaseBridge():
             self._client.disconnect()
 
 
-def handle_environment_configuration(configmap):
+def handle_environment_configuration(configmap): # noqa: C901
     print("Overriding configuration file with environment configuration")
     base = 'OWNTRACKS2DB_'
     configmap = ensure_keys(configmap)
@@ -208,6 +212,7 @@ def ensure_keys(configmap):
 
 def validate_configmap(configmap):
     pass
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
