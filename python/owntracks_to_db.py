@@ -62,7 +62,7 @@ class OwntracksToDatabaseBridge():
         dbpass = configs['database']['password']
         dbname = configs['database']['dbname']
 
-        # TODO: if connection to database failes, retry with backoff
+        # TODO: if connection to database fails, retry with backoff
         self._conn = connect(database=dbname, host=dbhost, port=dbport,
                              user=dbuser, password=dbpass)
 
@@ -212,6 +212,7 @@ def ensure_keys(configmap):
 
 def validate_configmap(configmap):
     pass
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
