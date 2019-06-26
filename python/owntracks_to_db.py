@@ -192,7 +192,7 @@ def handle_environment_configuration(configmap): # noqa: C901
     if os.environ.get(base + 'DB_NAME'):
         configmap['database']['dbname'] = os.environ[base + 'DB_NAME']
     if os.environ.get(base + 'METRICS_PORT'):
-        configmap['metrics']['port'] = os.eniron[base + 'METRICS_PORT']
+        configmap['metrics']['port'] = os.environ[base + 'METRICS_PORT']
     return configmap
 
 
