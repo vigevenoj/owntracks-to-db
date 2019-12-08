@@ -89,7 +89,7 @@ class OwntracksToDatabaseBridge():
         try:
             self._client.tls_set(ca_certs=configs['mqtt']['ca'],
                                  cert_reqs=ssl.CERT_REQUIRED,
-                                 tls_version=ssl.PROTOCOL_TLSv1)
+                                 tls_version=ssl.PROTOCOL_TLSv1_2)
         except IOError as e:
             self._logger.error("Something went wrong in mqtt setup. {0}"
                                .format(e))
@@ -100,11 +100,11 @@ class OwntracksToDatabaseBridge():
         mqtt_host = configs['mqtt']['host']
         mqtt_port = configs['mqtt']['port']
         self._client.on_message = handle_message
-        self._logger.warn("Connecting to mqtt at {0}:{1}...".format(
+        self._logger.warning("Connecting to mqtt at {0}:{1}...".format(
             mqtt_host, mqtt_port))
         # TODO: if connecting to mqtt broker fails, retry with backoff
         self._client.connect(mqtt_host, mqtt_port)
-        self._logger.warn("owntracks to db bridge started successfully")
+        self._logger.warning("owntracks to db bridge started successfully")
 
     def handle_location_update(self, user, device, rawdata):
         """
@@ -155,7 +155,7 @@ class OwntracksToDatabaseBridge():
         Subscribe to the channel and loop until terminated
         """
         self._client.subscribe([("owntracks/#", 0)])
-        self._logger.warn("subscribed to 'owntracks/#'")
+        self._logger.warning("subscribed to 'owntracks/#'")
         self._client.loop_forever()
         try:
             while True:
