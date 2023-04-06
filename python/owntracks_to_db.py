@@ -50,10 +50,7 @@ class OwntracksToDatabaseBridge():
         self._logger = logging.getLogger(__name__)
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler = logging.handlers.RotatingFileHandler(
-            'o2db.log',
-            maxBytes=1048576,
-            backupCount=2)
+        handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(formatter)
         self._logger.addHandler(handler)
         dbhost = configs['database']['host']
@@ -73,18 +70,18 @@ class OwntracksToDatabaseBridge():
             and a device name, and that information is used to insert the
             update into the database.
             """
-            j = json.loads(str(message.payload, encoding="ascii"))
+            msg_json = json.loads(str(message.payload, encoding="ascii"))
             if(message.topic.startswith("owntracks")):
                 # If message format is 'owntracks/user/device'
                 # then we should try to parse out userid/deviceid
                 # and handle this message as a location update
-                if(j['_type'] == 'location'):
+                if(msg_json['_type'] == 'location'):
                     userid = message.topic.split('/')[1]
                     device = message.topic.split('/')[2]
-                    self._logger.info("{0} {1} posted an update: {2}"
-                                      .format(userid, device, j))
+                    self._logger.info("{0} {1} posted an update: {2} with tst {3}"
+                                      .format(userid, device, msg_json, msg_json['tst']))
                     self.total_recieved_updates.inc()
-                    self.handle_location_update(userid, device, j)
+                    self.handle_location_update(userid, device, msg_json)
         self._client = mqtt.Client(client_id="")
         try:
             self._client.tls_set(ca_certs=configs['mqtt']['ca'],
