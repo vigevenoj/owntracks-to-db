@@ -2,18 +2,19 @@
 """
 Store owntracks location updates in a database
 """
-from datetime import datetime, timezone
-from pgdb import connect
-from prometheus_client import start_http_server, Counter, Gauge
 import argparse
 import json
 import logging
 import logging.handlers
 import os
-import paho.mqtt.client as mqtt
 import ssl
+import sys
 import time
+from datetime import datetime, timezone
 import yaml
+import paho.mqtt.client as mqtt
+from pgdb import connect
+from prometheus_client import start_http_server, Counter, Gauge
 
 
 class OwntracksToDatabaseBridge():
@@ -71,16 +72,17 @@ class OwntracksToDatabaseBridge():
             update into the database.
             """
             msg_json = json.loads(str(message.payload, encoding="ascii"))
-            if(message.topic.startswith("owntracks")):
+            if message.topic.startswith("owntracks"):
                 # If message format is 'owntracks/user/device'
                 # then we should try to parse out userid/deviceid
                 # and handle this message as a location update
-                if(msg_json['_type'] == 'location'):
+                if msg_json['_type'] == 'location':
                     userid = message.topic.split('/')[1]
                     device = message.topic.split('/')[2]
-                    self._logger.info("{0} {1} posted an update: {2} with tst {3}"
-                                      .format(userid, device, msg_json, msg_json['tst']))
+                    self._logger.info(
+                            f"{userid} {device} posted update: {msg_json} at tst {msg_json['tst']}")
                     self.total_recieved_updates.inc()
+                    self._last_received_timestamp = msg_json['tst']
                     self.handle_location_update(userid, device, msg_json)
         self._client = mqtt.Client(client_id="")
         try:
@@ -88,8 +90,7 @@ class OwntracksToDatabaseBridge():
                                  cert_reqs=ssl.CERT_REQUIRED,
                                  tls_version=ssl.PROTOCOL_TLSv1_2)
         except IOError as e:
-            self._logger.error("Something went wrong in mqtt setup. {0}"
-                               .format(e))
+            self._logger.error("Something went wrong in mqtt setup. {e}")
         self._client.username_pw_set(configs['mqtt']['username'],
                                      configs['mqtt']['password'])
         self._client.will_set("/lwt/o2db",
@@ -97,8 +98,7 @@ class OwntracksToDatabaseBridge():
         mqtt_host = configs['mqtt']['host']
         mqtt_port = configs['mqtt']['port']
         self._client.on_message = handle_message
-        self._logger.warning("Connecting to mqtt at {0}:{1}...".format(
-            mqtt_host, mqtt_port))
+        self._logger.warning(f"Connecting to mqtt at {mqtt_host}:{mqtt_port}...")
         # TODO: if connecting to mqtt broker fails, retry with backoff
         self._client.connect(mqtt_host, mqtt_port)
         self._logger.warning("owntracks to db bridge started successfully")
@@ -141,11 +141,12 @@ class OwntracksToDatabaseBridge():
             self._conn.commit()
             self.total_persisted_updates.inc()
             self.current_insertion_errors.set(0)
+            self._last_persisted_timestamp = datetime.datetime.now()
         except Exception as e:
             # TODO We should try to persist this update again
             self.insertion_errors.inc()
             self.current_insertion_errors.inc()
-            self._logger.error("Unable to execute query: {0}".format(e))
+            self._logger.error("Unable to execute query: {e}")
 
     def run(self):
         """
@@ -162,6 +163,9 @@ class OwntracksToDatabaseBridge():
 
 
 def handle_environment_configuration(configmap): # noqa: C901
+    """
+    Obtain configuration from environment variables
+    """
     print("Overriding configuration file with environment configuration")
     base = 'OWNTRACKS2DB_'
     configmap = ensure_keys(configmap)
@@ -207,10 +211,6 @@ def ensure_keys(configmap):
     return configmap
 
 
-def validate_configmap(configmap):
-    pass
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--config")
@@ -218,13 +218,13 @@ if __name__ == '__main__':
     configmap = {}
     if args.config:
         try:
-            with open(args.config, 'r') as stream:
+            with open(args.config, 'r', encoding='utf8') as stream:
                 try:
-                    configmap = yaml.load(stream)
+                    configmap = yaml.load(stream, Loader=yaml.FullLoader)
                 except yaml.YAMLError as e:
-                    print("Unable to load configuration file: {0}".format(e))
+                    print("Unable to load configuration file: {e}")
         except IOError as e:
-            print("Error loading configuration file: {0}".format(e))
+            print("Error loading configuration file: {e}")
     else:
         print("No configuration file specified")
     # Use environment variables to fill in anything missing from config file
