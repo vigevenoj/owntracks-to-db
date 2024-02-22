@@ -16,6 +16,13 @@ import paho.mqtt.client as mqtt
 from pgdb import connect
 from prometheus_client import start_http_server, Counter, Gauge
 
+FIRST_RECONNECT_DELAY = 1
+RECONNECT_RATE = 2
+MAX_RECONNECT_COUNT = 12
+MAX_RECONNECT_DELAY = 60
+
+FLAG_EXIT = False
+
 
 class OwntracksToDatabaseBridge():
     """
@@ -84,6 +91,29 @@ class OwntracksToDatabaseBridge():
                     self.total_recieved_updates.inc()
                     self._last_received_timestamp = msg_json['tst']
                     self.handle_location_update(userid, device, msg_json)
+
+        def handle_disconnect(client, userdata, rc):
+            logging.info(f"Disconnected with result code {rc}")
+            reconnect_count, reconnect_delay = 0, FIRST_RECONNECT_DELAY
+            while reconnect_count < MAX_RECONNECT_COUNT:
+                logging.info(f"Reconnecting in {reconnect_delay} seconds...")
+                time.sleep(reconnect_delay)
+
+                try:
+                    self._client.reconnect()
+                    logging.info("Reconnected successfully")
+                    return
+                except Exception as err:
+                    logging.error(f"Reconnect failed: {err}")
+
+                reconnect_delay *= RECONNECT_RATE
+                reconnect_delay = min(reconnect_delay, MAX_RECONNECT_DELAY)
+                reconnect_count += 1
+            logging.info(f"Reconnect failed after {reconnect_count} attempts. Exiting")
+            global FLAG_EXIT
+            FLAG_EXIT = True
+
+
         self._client = mqtt.Client(client_id="")
         try:
             self._client.tls_set(ca_certs=configs['mqtt']['ca'],
@@ -98,10 +128,12 @@ class OwntracksToDatabaseBridge():
         mqtt_host = configs['mqtt']['host']
         mqtt_port = configs['mqtt']['port']
         self._client.on_message = handle_message
+        self._client.on_disconnect = handle_disconnect
         self._logger.warning(f"Connecting to mqtt at {mqtt_host}:{mqtt_port}...")
         # TODO: if connecting to mqtt broker fails, retry with backoff
         self._client.connect(mqtt_host, mqtt_port)
         self._logger.warning("owntracks to db bridge started successfully")
+
 
     def handle_location_update(self, user, device, rawdata):
         """
@@ -156,9 +188,10 @@ class OwntracksToDatabaseBridge():
         self._logger.warning("subscribed to 'owntracks/#'")
         self._client.loop_forever()
         try:
-            while True:
+            while not FLAG_EXIT:
                 time.sleep(2)
         except (KeyboardInterrupt, SystemExit):
+            self._logger.warning("Exiting")
             self._client.disconnect()
 
 
