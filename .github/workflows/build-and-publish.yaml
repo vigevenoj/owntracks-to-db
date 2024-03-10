@@ -45,5 +45,5 @@ jobs:
         with:
           context: "{{defaultContext}}:python"
           push: true
-          tags: ${{ steps.meta.output.tags }}
-          labels: ${{ steps.meta.output.labels }}
+          tags: ${{ steps.meta.outputs.tags }},latest
+          labels: ${{ steps.meta.outputs.labels }}
