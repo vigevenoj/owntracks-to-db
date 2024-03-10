@@ -27,6 +27,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: set up docker buildx for subdirectory build
+        uses: docker/setup-buildx-action@v3
+
       - name: extract metadata for docker
         id: meta
         uses: docker/metadata-action@v5
@@ -36,10 +39,6 @@ jobs:
       - name: build and push docker image
         uses: docker/build-push-action@v5
         with:
-          registry: ${{ env.REGISTRY }}
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          addLatest: true
-          addTimestamp: false
-          directory: python
+          context: {{defaultContext}}:mysubdir"
           tags: ${{ steps.meta.output.tags }}
           labels: ${{ steps.meta.output.labels }}
