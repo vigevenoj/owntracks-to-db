@@ -21,6 +21,9 @@ jobs:
       # does not need checkout action?
       #- uses: actions/checkout@v4
       
+      - name: install postgres dev packages
+        run: sudo apt install python3-dev libpq-dev
+
       - name: Log into ghcr container registry
         uses: docker/login-action@v3
         with:
