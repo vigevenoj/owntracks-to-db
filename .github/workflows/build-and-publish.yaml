@@ -44,5 +44,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: "{{defaultContext}}:python"
+          push: true
           tags: ${{ steps.meta.output.tags }}
           labels: ${{ steps.meta.output.labels }}
