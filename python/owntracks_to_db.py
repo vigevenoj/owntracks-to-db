@@ -180,7 +180,7 @@ class OwntracksToDatabaseBridge():
             # TODO We should try to persist this update again
             self.insertion_errors.inc()
             self.current_insertion_errors.inc()
-            self._logger.error("Unable to execute query: {e}")
+            self._logger.error(f"Unable to execute query: {e}")
 
     def run(self):
         """
