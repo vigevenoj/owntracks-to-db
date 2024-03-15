@@ -175,7 +175,7 @@ class OwntracksToDatabaseBridge():
             self._conn.commit()
             self.total_persisted_updates.inc()
             self.current_insertion_errors.set(0)
-            self._last_persisted_timestamp = datetime.datetime.now()
+            self._last_persisted_timestamp = datetime.now().timestamp()
         except Exception as e:
             # TODO We should try to persist this update again
             self.insertion_errors.inc()
