@@ -92,9 +92,11 @@ class OwntracksToDatabaseBridge():
                     self._last_received_timestamp = msg_json['tst']
                     self.handle_location_update(userid, device, msg_json)
 
-        def handle_disconnect(client, userdata, rc):
-            logging.info(f"Disconnected with result code {rc}")
+        def handle_disconnect(client, userdata, reason_code, properties):
+            logging.info(f"Disconnected with result code {reason_code}")
             reconnect_count, reconnect_delay = 0, FIRST_RECONNECT_DELAY
+            if reason_code == 0:
+                self._logger.info("Successful disconnect?")
             while reconnect_count < MAX_RECONNECT_COUNT:
                 logging.info(f"Reconnecting in {reconnect_delay} seconds...")
                 time.sleep(reconnect_delay)
@@ -114,7 +116,7 @@ class OwntracksToDatabaseBridge():
             FLAG_EXIT = True
 
 
-        self._client = mqtt.Client(client_id="")
+        self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id="")
         try:
             self._client.tls_set(ca_certs=configs['mqtt']['ca'],
                                  cert_reqs=ssl.CERT_REQUIRED,
