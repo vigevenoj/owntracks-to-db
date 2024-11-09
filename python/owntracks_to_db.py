@@ -118,9 +118,11 @@ class OwntracksToDatabaseBridge():
 
         self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="")
         try:
-            self._client.tls_set(ca_certs=configs['mqtt']['ca'],
-                                 cert_reqs=ssl.CERT_REQUIRED,
-                                 tls_version=ssl.PROTOCOL_TLSv1_2)
+            if configs['mqtt']['ca']:
+                self._client.tls_set(ca_certs=configs['mqtt']['ca'],
+                                     cert_reqs=ssl.CERT_REQUIRED)
+            else:
+                self._client.tls_set(cert_reqs=ssl.CERT_REQUIRED)
         except IOError as e:
             self._logger.error("Something went wrong in mqtt setup. {e}")
         self._client.username_pw_set(configs['mqtt']['username'],
