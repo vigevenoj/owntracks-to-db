@@ -118,7 +118,7 @@ class OwntracksToDatabaseBridge():
 
         self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="")
         try:
-            if configs['mqtt']['ca']:
+            if 'ca' in configs['mqtt']:
                 self._client.tls_set(ca_certs=configs['mqtt']['ca'],
                                      cert_reqs=ssl.CERT_REQUIRED)
             else:
